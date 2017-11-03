@@ -294,15 +294,13 @@ public class StickerView extends FrameLayout {
         if (locked) {
             return super.onInterceptTouchEvent(ev);
         }
-
-        switch (ev.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                downX = ev.getX();
-                downY = ev.getY();
-
-                return findCurrentIconTouched() != null || findHandlingSticker() != null;
-        }
-
+//        switch (ev.getAction()) {
+//            case MotionEvent.ACTION_DOWN:
+//                downX = ev.getX();
+//                downY = ev.getY();
+//
+//                return findCurrentIconTouched() != null || findHandlingSticker() != null;
+//        }
         return super.onInterceptTouchEvent(ev);
     }
 
@@ -319,17 +317,24 @@ public class StickerView extends FrameLayout {
                 if (!onTouchDown(event)) {
                     return false;
                 }
+                Log.d(TAG, "ACTION_DOWN");
                 break;
             case MotionEvent.ACTION_POINTER_DOWN:
+                if (!onTouchPointerDown(event)) {
+                    return false;
+                }
+
                 oldDistance = calculateDistance(event);
                 oldRotation = calculateRotation(event);
 
                 midPoint = calculateMidPoint(event);
 
-                if (handlingSticker != null && isInStickerArea(handlingSticker, event.getX(1),
-                        event.getY(1)) && findCurrentIconTouched() == null) {
+
+                if (handlingSticker != null && isInStickerArea(handlingSticker, midPoint.x,
+                        midPoint.y) && findCurrentIconTouched() == null) {
                     currentMode = ActionMode.ZOOM_WITH_TWO_FINGER;
                 }
+                Log.d(TAG, "ACTION_POINTER_DOWN");
                 break;
 
             case MotionEvent.ACTION_MOVE:
@@ -339,6 +344,7 @@ public class StickerView extends FrameLayout {
 
             case MotionEvent.ACTION_UP:
                 onTouchUp(event);
+                Log.d(TAG, "ACTION_UP");
                 break;
 
             case MotionEvent.ACTION_POINTER_UP:
@@ -348,6 +354,7 @@ public class StickerView extends FrameLayout {
                     }
                 }
                 currentMode = ActionMode.NONE;
+                Log.d(TAG, "ACTION_POINTER_UP");
                 break;
         }
 
@@ -373,7 +380,46 @@ public class StickerView extends FrameLayout {
             currentMode = ActionMode.ICON;
             currentIcon.onActionDown(this, event);
         } else {
-            handlingSticker = findHandlingSticker();
+            handlingSticker = findHandlingSticker(event);
+        }
+        if (handlingSticker != null) {
+            onStickerOperationListener.onStickerTouchedDown(handlingSticker);
+            downMatrix.set(handlingSticker.getMatrix());
+            if (bringToFrontCurrentSticker) {
+                stickers.remove(handlingSticker);
+                stickers.add(handlingSticker);
+            }
+        }
+
+//        if (currentIcon == null && handlingSticker == null) {
+//            return false;
+//        }
+        invalidate();
+        return true;
+    }
+
+
+    /**
+     * @param event MotionEvent received from {@link #onTouchEvent)
+     * @return true if has touch something
+     */
+    protected boolean onTouchPointerDown(@NonNull MotionEvent event) {
+        if (event.getPointerCount() < 2) {
+            //单指触控直接返回
+            return false;
+        }
+        currentMode = ActionMode.ZOOM_WITH_TWO_FINGER;
+
+//        midPoint = calculateMidPoint();
+//        oldDistance = calculateDistance(midPoint.x, midPoint.y, downX, downY);
+//        oldRotation = calculateRotation(midPoint.x, midPoint.y, downX, downY);
+
+        currentIcon = findCurrentIconTouched();
+        if (currentIcon != null) {
+            currentMode = ActionMode.ICON;
+            currentIcon.onActionDown(this, event);
+        } else {
+            handlingSticker = findHandlingSticker(event);
         }
 
         if (handlingSticker != null) {
@@ -385,9 +431,9 @@ public class StickerView extends FrameLayout {
             }
         }
 
-        if (currentIcon == null && handlingSticker == null) {
-            return false;
-        }
+//        if (currentIcon == null && handlingSticker == null) {
+//            return false;
+//        }
         invalidate();
         return true;
     }
@@ -521,10 +567,18 @@ public class StickerView extends FrameLayout {
      * find the touched Sticker
      **/
     @Nullable
-    protected Sticker findHandlingSticker() {
+    protected Sticker findHandlingSticker(MotionEvent event) {
+        boolean isSinglePointF = event.getPointerCount() == 1;
         for (int i = stickers.size() - 1; i >= 0; i--) {
-            if (isInStickerArea(stickers.get(i), downX, downY)) {
-                return stickers.get(i);
+            if (isSinglePointF) {
+                if (isInStickerArea(stickers.get(i), downX, downY)) {
+                    return stickers.get(i);
+                }
+            } else {
+                PointF midPointF = calculateMidPoint(event);
+                if (isInStickerArea(stickers.get(i), midPointF.x, midPointF.y)) {
+                    return stickers.get(i);
+                }
             }
         }
         return null;
@@ -540,11 +594,11 @@ public class StickerView extends FrameLayout {
     protected PointF calculateMidPoint(@Nullable MotionEvent event) {
         if (event == null || event.getPointerCount() < 2) {
             midPoint.set(0, 0);
-            return midPoint;
+        } else {
+            float x = (event.getX(0) + event.getX(1)) / 2;
+            float y = (event.getY(0) + event.getY(1)) / 2;
+            midPoint.set(x, y);
         }
-        float x = (event.getX(0) + event.getX(1)) / 2;
-        float y = (event.getY(0) + event.getY(1)) / 2;
-        midPoint.set(x, y);
         return midPoint;
     }
 

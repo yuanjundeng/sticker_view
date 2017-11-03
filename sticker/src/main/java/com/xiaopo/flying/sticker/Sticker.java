@@ -91,8 +91,6 @@ public abstract class Sticker {
     }
 
 
-
-
     public void getBoundPoints(@NonNull float[] points) {
         if (!isFlippedHorizontally) {
             if (!isFlippedVertically) {
@@ -250,9 +248,13 @@ public abstract class Sticker {
 
     public boolean contains(@NonNull float[] point) {
         Matrix tempMatrix = new Matrix();
+        //设置角度
         tempMatrix.setRotate(-getCurrentAngle());
+        //获取当前图标的原始范围
         getBoundPoints(boundPoints);
+        //映射出的那个图标的缩放后的范围
         getMappedPoints(mappedBounds, boundPoints);
+        //
         tempMatrix.mapPoints(unrotatedWrapperCorner, mappedBounds);
         tempMatrix.mapPoints(unrotatedPoint, point);
         StickerUtils.trapToRect(trappedRect, unrotatedWrapperCorner);
