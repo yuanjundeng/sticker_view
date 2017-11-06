@@ -17,6 +17,8 @@ import java.lang.annotation.RetentionPolicy;
  * @author wupanjie
  */
 public abstract class Sticker {
+    //最小触控范围
+    private static final int minRange = 80;
 
     @IntDef(flag = true, value = {
             Position.CENTER, Position.TOP, Position.BOTTOM, Position.LEFT, Position.RIGHT
@@ -258,6 +260,17 @@ public abstract class Sticker {
         tempMatrix.mapPoints(unrotatedWrapperCorner, mappedBounds);
         tempMatrix.mapPoints(unrotatedPoint, point);
         StickerUtils.trapToRect(trappedRect, unrotatedWrapperCorner);
+        if (trappedRect.width() < minRange && trappedRect.height() < minRange) {
+            RectF rectF = trappedRect;
+            float halfWidth = (minRange - rectF.width()) / 2;
+            float halfHeight = (minRange - rectF.height()) / 2;
+
+            rectF.left = rectF.left - halfWidth;
+            rectF.right = rectF.right + halfWidth;
+            rectF.top = rectF.top - halfHeight;
+            rectF.bottom = rectF.bottom + halfHeight;
+            return rectF.contains(unrotatedPoint[0], unrotatedPoint[1]);
+        }
         return trappedRect.contains(unrotatedPoint[0], unrotatedPoint[1]);
     }
 
