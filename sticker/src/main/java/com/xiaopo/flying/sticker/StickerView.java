@@ -331,7 +331,6 @@ public class StickerView extends FrameLayout {
 
                 midPoint = calculateMidPoint(event);
 
-
                 if (handlingSticker != null && isInStickerArea(handlingSticker, midPoint.x,
                         midPoint.y) && findCurrentIconTouched() == null) {
                     currentMode = ActionMode.ZOOM_WITH_TWO_FINGER;
@@ -340,7 +339,10 @@ public class StickerView extends FrameLayout {
                 break;
 
             case MotionEvent.ACTION_MOVE:
-                handleCurrentMode(event);
+                boolean intercepted = handleCurrentMode(event);
+//                if (intercepted) {
+//                    return true;
+//                }
                 invalidate();
                 break;
 
@@ -472,7 +474,9 @@ public class StickerView extends FrameLayout {
         lastClickTime = currentTime;
     }
 
-    protected void handleCurrentMode(@NonNull MotionEvent event) {
+    protected boolean handleCurrentMode(@NonNull MotionEvent event) {
+        boolean intercepted = false;
+        //
         switch (currentMode) {
             case ActionMode.NONE:
             case ActionMode.CLICK:
@@ -481,34 +485,16 @@ public class StickerView extends FrameLayout {
                 if (handlingSticker != null) {
                     float moveX = event.getX() - downX;
                     float moveY = event.getY() - downY;
-//                    //
-//                    //如果边缘部分到达1/4就不能移动
-//                    handlingSticker.getMappedCenterPoint(currentCenterPoint, point, tmp);
-//                    //现在的图片正方形大小
-//                    RectF rectF = handlingSticker.getMappedBound();
-//                    int width = getWidth();
-//                    int height = getHeight();
-//                    //
-//                    int stickerDrawableWidth = handlingSticker.getWidth();
-//                    int stickerDrawableHeight = handlingSticker.getHeight();
-//                    if (currentCenterPoint.x < 0 && rectF.right < minEdgeRate * stickerDrawableWidth) {
-//                        moveX = minEdgeRate * stickerDrawableWidth - rectF.right;
-//                    }
-//                    if (currentCenterPoint.x > width && rectF.left > width - minEdgeRate * stickerDrawableWidth) {
-//                        moveX = width - minEdgeRate * stickerDrawableWidth - rectF.left;
-//                    }
-//                    if (currentCenterPoint.y < 0 && rectF.top < minEdgeRate * stickerDrawableHeight) {
-//                        moveY = minEdgeRate * stickerDrawableHeight - rectF.top;
-//                    }
-//                    if (currentCenterPoint.y > height && rectF.bottom > height - minEdgeRate * stickerDrawableHeight) {
-//                        moveY = height - minEdgeRate * stickerDrawableHeight - rectF.bottom;
-//                    }
-                    //
+
                     moveMatrix.set(downMatrix);
                     moveMatrix.postTranslate(moveX, moveY);
                     handlingSticker.setMatrix(moveMatrix);
                     if (constrained) {
-                        constrainSticker(handlingSticker);
+                        intercepted = constrainSticker(handlingSticker);
+                        if (intercepted) {
+                            //恢复初始状态
+                            currentMode = ActionMode.NONE;
+                        }
                     }
                 }
                 break;
@@ -534,6 +520,7 @@ public class StickerView extends FrameLayout {
             default:
                 break;
         }
+        return intercepted;
     }
 
     public void zoomAndRotateCurrentSticker(@NonNull MotionEvent event) {
@@ -553,7 +540,10 @@ public class StickerView extends FrameLayout {
         }
     }
 
-    protected void constrainSticker(@NonNull Sticker sticker) {
+    protected boolean constrainSticker(@NonNull Sticker sticker) {
+        //
+        boolean intercepted = false;
+        //
         float moveX = 0;
         float moveY = 0;
         int width = getWidth();
@@ -561,21 +551,25 @@ public class StickerView extends FrameLayout {
         sticker.getMappedCenterPoint(currentCenterPoint, point, tmp);
         //现在的图片正方形大小
         RectF rectF = handlingSticker.getMappedBound();
-        int stickerDrawableWidth = handlingSticker.getWidth();
-        int stickerDrawableHeight = handlingSticker.getHeight();
-
-        if (currentCenterPoint.x < 0 && rectF.right < minEdgeRate * stickerDrawableWidth) {
-            moveX = minEdgeRate * stickerDrawableWidth - rectF.right;
-        } else if (currentCenterPoint.x > width && rectF.left > width - minEdgeRate * stickerDrawableWidth) {
-            moveX = width - minEdgeRate * stickerDrawableWidth - rectF.left;
+        float stickerWidth = handlingSticker.getCurrentWidth();
+        float stickerHeight = handlingSticker.getCurrentHeight();
+        if (currentCenterPoint.x < -minEdgeRate * stickerWidth) {
+            //left 超出1/4
+            intercepted = true;
+        } else if (currentCenterPoint.y < -minEdgeRate * stickerHeight) {
+            //top 超出1/4
+            intercepted = true;
+        } else if (currentCenterPoint.x > width && currentCenterPoint.x > width + minEdgeRate * stickerWidth) {
+            //right 超出1/4
+            intercepted = true;
+        } else if (currentCenterPoint.y > height && currentCenterPoint.y > height + minEdgeRate * stickerHeight) {
+            //bottom 超出1/4
+            intercepted = true;
         }
-        if (currentCenterPoint.y < 0 && rectF.bottom < minEdgeRate * stickerDrawableHeight) {
-            moveY = minEdgeRate * stickerDrawableHeight - rectF.bottom;
-        } else if (currentCenterPoint.y > height && rectF.top > height - minEdgeRate * stickerDrawableHeight) {
-            moveY = height - minEdgeRate * stickerDrawableHeight - rectF.top;
+        if (intercepted) {
+            moveX = width / 2 - currentCenterPoint.x;
+            moveY = height / 2 - currentCenterPoint.y;
         }
-
-
 //        if (currentCenterPoint.x < 0) {
 //            moveX = -currentCenterPoint.x;
 //        }
@@ -591,8 +585,8 @@ public class StickerView extends FrameLayout {
 //        if (currentCenterPoint.y > height) {
 //            moveY = height - currentCenterPoint.y;
 //        }
-
         sticker.getMatrix().postTranslate(moveX, moveY);
+        return intercepted;
     }
 
     @Nullable
@@ -859,7 +853,6 @@ public class StickerView extends FrameLayout {
 
     protected void addStickerImmediately(@NonNull Sticker sticker, @Sticker.Position int position) {
         setStickerPosition(sticker, position);
-
 //
 //        float scaleFactor, widthScaleFactor, heightScaleFactor;
 //
